@@ -1,0 +1,124 @@
+{
+  "_README": [
+    "Frames captured verbatim from the vendor app, used to prove the builders in",
+    "zengge/protocol.py reproduce real traffic byte for byte.",
+    "",
+    "RULES:",
+    "  1. A golden frame is EVIDENCE, not an expected value. If a test fails,",
+    "     the builder is wrong. NEVER edit capture_hex to make a test pass.",
+    "  2. Captures must be NEUTRAL. Create a throwaway schedule/scene in the app",
+    "     purely to capture it -- do not paste in your own saved scenes, palettes",
+    "     or schedule times. This repository is public and those are personal.",
+    "  3. Capture against tools/fakedevice.py, not real hardware. Timer slots are",
+    "     persistent configuration.",
+    "",
+    "capture_hex is the frame EXACTLY as it appeared on the wire, including the",
+    "b0 b1 b2 b3 wrapper if one was present. The test unwraps it before comparing,",
+    "so the wrapper's per-message counter does not matter.",
+    "",
+    "Set framing to what you actually observed: 'wrapped' if the bytes begin",
+    "b0 b1 b2 b3, otherwise 'bare'. This field is itself under test.",
+    "",
+    "Entries whose capture_hex is 'TODO' are skipped."
+  ],
+
+  "captures": [
+    {
+      "name": "timer_write_power_on",
+      "builder": "timer_write",
+      "note": "PRIORITY. Settles whether an e0 05 message is bare or wrapped, and whether its inner checksum survives inside a wrapper. Create a throwaway timer at a neutral time -- 07:00, every day, action 'turn on'.",
+      "framing": "TODO",
+      "capture_hex": "TODO",
+      "args": {
+        "slot": 1,
+        "hour": 7,
+        "minute": 0,
+        "second": 0,
+        "enabled": true,
+        "daymask": 254,
+        "payload_hex": "e0010023000000000000000000"
+      }
+    },
+    {
+      "name": "timer_delete",
+      "builder": "timer_delete",
+      "note": "Delete the throwaway timer above and capture the command.",
+      "framing": "TODO",
+      "capture_hex": "TODO",
+      "args": { "slot": 1 }
+    },
+    {
+      "name": "timer_write_disabled",
+      "builder": "timer_write",
+      "note": "Same timer, toggled OFF in the app. Confirms the enabled flag is the only byte that changes.",
+      "framing": "TODO",
+      "capture_hex": "TODO",
+      "args": {
+        "slot": 1,
+        "hour": 7,
+        "minute": 0,
+        "second": 0,
+        "enabled": false,
+        "daymask": 254,
+        "payload_hex": "e0010023000000000000000000"
+      }
+    },
+    {
+      "name": "scene_three_primaries",
+      "builder": "scene",
+      "note": "Build a NEW scene in the app with exactly three entries -- pure red, pure green, pure blue -- at speed 50, brightness 100. Neutral by construction. Settles e1 21 header byte 7 and the 5th colour-entry byte.",
+      "framing": "TODO",
+      "capture_hex": "TODO",
+      "args": {
+        "pattern": "TODO: the id byte the app used",
+        "speed": 50,
+        "brightness": 100,
+        "style": 0,
+        "colors": [
+          { "hue": 0, "saturation": 100, "value": 100, "white": 0 },
+          { "hue": 120, "saturation": 100, "value": 100, "white": 0 },
+          { "hue": 240, "saturation": 100, "value": 100, "white": 0 }
+        ]
+      }
+    },
+    {
+      "name": "per_pixel_small",
+      "builder": "per_pixel",
+      "note": "PRIORITY. A doodle on a SHORT run if you can configure one, else note the real N here and use neutral colours. Settles whether the 7th entry byte is a white channel or a per-entry brightness -- send one fully saturated colour and read that byte.",
+      "framing": "TODO",
+      "capture_hex": "TODO",
+      "args": {
+        "brightness": 100,
+        "seq": 0,
+        "colors": "TODO: one entry per light, in strand order"
+      }
+    },
+    {
+      "name": "solid_color_warm_white",
+      "builder": "solid_color",
+      "note": "Pick any colour in the app's colour wheel and capture. Confirms the e0 01 00 a1 layout and the 0x14 constant.",
+      "framing": "TODO",
+      "capture_hex": "TODO",
+      "args": { "hue": 30, "saturation": 36, "value": 100 }
+    },
+    {
+      "name": "power_on",
+      "builder": "power",
+      "note": "Tap the power toggle on. Confirms bare framing for 71 23 0f.",
+      "framing": "TODO",
+      "capture_hex": "TODO",
+      "args": { "on": true }
+    },
+    {
+      "name": "state_reply",
+      "builder": null,
+      "note": "A real 28-byte EA 81 reply, parsed rather than built. Any state is fine; it reveals no personal detail beyond which scene was active, so capture one with the lights on a plain colour.",
+      "framing": "TODO",
+      "capture_hex": "TODO",
+      "expect": {
+        "model": 110,
+        "is_on": true
+      }
+    }
+  ]
+}

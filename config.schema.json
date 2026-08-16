@@ -1,0 +1,93 @@
+{
+  "pluginAlias": "ZenggeLedenet",
+  "pluginType": "platform",
+  "singular": true,
+  "headerDisplay": "Local control for ZENGGE / LEDENET controllers running newer OEM firmware (model `0x6E`, `ZG-BL-HONGRUI`). No cloud, no account. The controller must be reachable on your LAN on TCP 5577.",
+  "footerDisplay": "Pixel count and scenes are yours to define — this plugin has no built-in idea of how your run is installed.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "title": "Platform Name",
+        "type": "string",
+        "default": "ZenggeLedenet",
+        "required": true
+      },
+      "devices": {
+        "title": "Controllers",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string",
+              "required": true,
+              "description": "Shown in the Home app."
+            },
+            "host": {
+              "title": "IP address or hostname",
+              "type": "string",
+              "required": true,
+              "format": "hostname",
+              "description": "Give the controller a DHCP reservation — these devices do not advertise mDNS, so a changed address silently breaks the accessory."
+            },
+            "port": {
+              "title": "Port",
+              "type": "integer",
+              "default": 5577
+            },
+            "pixels": {
+              "title": "Number of lights on the strand",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 255,
+              "description": "Only needed for per-pixel effects. There is no way to read this from the device."
+            },
+            "scenes": {
+              "title": "Scenes",
+              "type": "array",
+              "description": "Each becomes a switch in the Home app.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": { "title": "Name", "type": "string", "required": true },
+                  "pattern": {
+                    "title": "Animation id",
+                    "type": "integer",
+                    "required": true,
+                    "minimum": 0,
+                    "maximum": 255,
+                    "description": "The pattern id byte. Read it from the device state while the scene is running in the vendor app."
+                  },
+                  "speed": { "title": "Speed", "type": "integer", "default": 50, "minimum": 0, "maximum": 100 },
+                  "brightness": { "title": "Brightness", "type": "integer", "default": 100, "minimum": 0, "maximum": 100 },
+                  "style": {
+                    "title": "Style variant",
+                    "type": "integer",
+                    "default": 0,
+                    "description": "0 for most scenes; 2 is a random fade-in/out style."
+                  },
+                  "colors": {
+                    "title": "Palette",
+                    "type": "array",
+                    "description": "A REPEATING MOTIF, not one entry per light. Three entries repeat around the whole strand.",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "hue": { "title": "Hue", "type": "integer", "minimum": 0, "maximum": 358 },
+                        "saturation": { "title": "Saturation", "type": "integer", "minimum": 0, "maximum": 100 },
+                        "value": { "title": "Value", "type": "integer", "minimum": 0, "maximum": 100 },
+                        "white": { "title": "White", "type": "integer", "minimum": 0, "maximum": 100 }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
