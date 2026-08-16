@@ -1,0 +1,46 @@
+name: "🐛 Something is broken"
+description: "The plugin crashed, misbehaved, or does something clearly wrong."
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        🔒 **Your Homebridge logs are safe to paste.** The plugin never logs the
+        32-character hex value from discovery replies, and there is a test
+        enforcing that. If you gather information with another tool, redact any
+        32-character hex string.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: What did you do in the Home app?
+      placeholder: |
+        1. Tapped the tile off
+        2. Tapped it back on
+        3. The lights stayed off
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log output
+      description: "Turn on Debug Mode in the Homebridge UI settings (or run `homebridge -D`) and include the lines starting `[ZenggeLedenet]`."
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Plugin / Homebridge / Node versions
+      placeholder: "0.1.0 / 2.3.1 / 24.x"
+  - type: input
+    id: model
+    attributes:
+      label: Controller model string
+      description: "Logged at startup as `Found <model> at <address>`."

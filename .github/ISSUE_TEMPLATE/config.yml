@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📖 The protocol reference
+    url: https://github.com/crimsontech79/zengge-ledenet-py/blob/main/docs/PROTOCOL.md
+    about: "How this hardware actually works, byte by byte — useful if you are extending the plugin or porting it elsewhere."
+  - name: 🔍 How this protocol was reverse-engineered
+    url: https://github.com/crimsontech79/zengge-ledenet-py/blob/main/docs/DISCOVERY.md
+    about: "The method, and the open questions — if you have different hardware and want to map it yourself."

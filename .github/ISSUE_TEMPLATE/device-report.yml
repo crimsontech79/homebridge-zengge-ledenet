@@ -1,0 +1,63 @@
+name: "💡 Device report — did it work?"
+description: "Tell us which controller you have and whether the plugin worked. Takes a minute. You do not need to diagnose anything."
+title: "[Device] "
+labels: ["device-report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you — this is genuinely the most useful thing you can send.
+
+        The plugin has only ever been tested against **one controller on one
+        network**, so every report from different hardware is new information.
+        "It works fine" is just as valuable as "it does nothing".
+
+        🔒 **Nothing we ask for here is sensitive.** The plugin never logs the
+        32-character hex value that newer firmware includes in discovery
+        replies. If you paste output from some *other* tool, redact any
+        32-character hex string first.
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: How did it go?
+      options:
+        - "Works — everything I tried was fine"
+        - "Partly works — some things work, some do not"
+        - "Found my controller, but nothing worked"
+        - "Never found my controller at all"
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Controller model string
+      description: "The plugin logs this at startup as `Found <model> at <address>`. Leave blank if it never found anything."
+      placeholder: "AK001-ZJ…"
+  - type: input
+    id: brand
+    attributes:
+      label: Who installed or sold the lights?
+      description: "Brand or installer name, if you know it — Trimlight, Gemstone, EverLights, a local company, or bought-it-myself."
+      placeholder: "e.g. a regional installer, or a strip I bought online"
+  - type: textarea
+    id: worked
+    attributes:
+      label: What worked and what did not
+      description: "On/off? The colour wheel? Brightness? Plain language is fine."
+      placeholder: |
+        On/off worked.
+        Colour wheel changed the lights but the colour was wrong.
+    validations:
+      required: true
+  - type: input
+    id: pixels
+    attributes:
+      label: Roughly how many lights are on the run?
+      description: "A rough number is fine. Useful because frame size scales with it, and nobody has tested a short run."
+      placeholder: "e.g. about 50"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log lines (optional)
+      description: "Any lines starting `[ZenggeLedenet]`. Turn on Debug Mode in the Homebridge UI for more detail."
+      render: shell

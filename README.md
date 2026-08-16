@@ -16,6 +16,25 @@ breaks the connection.
 > (`docs/PROTOCOL.md`) — that document is the authoritative reference and the
 > point of both projects. This plugin is the HomeKit front end for it.
 
+## 📣 Please tell us whether it worked
+
+**This has only ever been tested against one controller, on one network.**
+
+That is the honest situation, and it is why your experience matters more than
+usual here. Whether it worked perfectly, half-worked, or did nothing at all —
+[**tell us in an issue**](https://github.com/crimsontech79/homebridge-zengge-ledenet/issues/new/choose).
+There are two one-minute forms: one for bugs, one just for saying which
+controller you have and whether it worked.
+
+You do not need to diagnose anything. "It found my lights but the colour wheel
+does nothing" is a genuinely useful report. So is "it works fine" — that is how
+the list of known-good hardware gets built.
+
+Permanent outdoor lighting is sold under a lot of names — Trimlight, Gemstone,
+EverLights, Jellyfish, and many regional installers — usually with a generic
+ZENGGE controller inside. Whether *yours* speaks this command set is an open
+question, and nobody can answer it without you.
+
 ## What works
 
 | Capability | HomeKit surface |
@@ -139,6 +158,46 @@ them is wrong about the hardware.
 
 ⛔ **A golden capture is evidence, never an expected value.** If a golden test
 fails, the builder is wrong. Never edit a capture to make a test pass.
+
+## Reporting a bug, or a device that does not work
+
+[**Open an issue**](https://github.com/crimsontech79/homebridge-zengge-ledenet/issues/new/choose)
+— there are forms for both a bug and a plain "here's my hardware" report.
+
+If you are reporting something broken, turn on debug logging first (`homebridge -D`, or "Debug Mode" in the Homebridge
+UI settings) and include:
+
+- What you expected, and what happened instead.
+- The plugin's log lines — they start `[ZenggeLedenet]`.
+- The controller's **model string**, which the plugin logs at startup as
+  `Found <model> at <address>`.
+- Your Homebridge and Node versions.
+
+🔒 **Your logs are safe to paste.** Discovery replies on newer firmware include a
+32-character hex value of unknown purpose. It looks like a device secret, so this
+plugin never logs or stores it — there is a test enforcing that. If you gather
+information with some *other* tool, redact any 32-character hex string before
+posting it.
+
+### A controller this plugin cannot talk to
+
+Especially welcome. If the plugin finds your controller but nothing works, say so
+and include the model string — that is a useful data point even without a fix,
+and it is how the list of known hardware grows. If it does not find it at all,
+say that too: some networks block the UDP broadcast discovery relies on, and
+that is worth knowing about.
+
+### Things that are known, and not bugs
+
+- **Scene switches need a packet capture to configure.** There is no scene-recall
+  command in this firmware and a scene's palette cannot be read back. See the
+  scenes section above.
+- **Changing colour ends a running scene, permanently.** There is no command to
+  restore one; it has to be re-selected in the vendor app.
+- **Per-pixel and music-reactive modes are not exposed to HomeKit**, which has no
+  vocabulary for either. They exist in the protocol layer.
+- **Turning a scene switch off does nothing to the lights.** There is no "stop
+  scene" command, so the plugin leaves them alone rather than guessing.
 
 ## Credits
 
