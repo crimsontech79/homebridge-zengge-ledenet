@@ -15,6 +15,32 @@ import type { State } from './protocol';
  */
 const COLOR_COALESCE_MS = 50;
 
+/**
+ * HomeKit expresses colour temperature in MIREDS (1e6 / kelvin), where a LOWER
+ * number is COOLER. The device uses its own 0-100 scale in the opposite
+ * direction, 0 believed warmest.
+ *
+ * The bounds below correspond to roughly 2700K-6500K, the usual span for this
+ * class of hardware. They are a stated assumption, not a measurement: nobody
+ * has put a meter on this strand. Narrower bounds are the honest choice —
+ * claiming HomeKit's full 140-500 range would assert a span we have not seen.
+ */
+const MIRED_WARMEST = 370;  // ~2700K
+const MIRED_COOLEST = 153;  // ~6500K
+
+/** mireds -> the device's 0-100 white scale (0 warm, 100 cool). */
+export function miredToDeviceTemp(mired: number): number {
+  const clamped = Math.min(MIRED_WARMEST, Math.max(MIRED_COOLEST, mired));
+  const ratio = (MIRED_WARMEST - clamped) / (MIRED_WARMEST - MIRED_COOLEST);
+  return Math.round(ratio * 100);
+}
+
+/** The inverse, so what HomeKit shows matches what was sent. */
+export function deviceTempToMired(temp: number): number {
+  const clamped = Math.min(100, Math.max(0, temp));
+  return Math.round(MIRED_WARMEST - (clamped / 100) * (MIRED_WARMEST - MIRED_COOLEST));
+}
+
 export class ControllerAccessory {
   private readonly light: Service;
   private readonly sceneSwitches = new Map<string, Service>();
@@ -23,7 +49,16 @@ export class ControllerAccessory {
   /** What HomeKit believes. The device's own state frame is authoritative for
    *  power, but it does NOT report the palette of a running scene, so colour is
    *  tracked locally between pushes. */
-  private state = { on: false, hue: 0, saturation: 100, brightness: 100 };
+  private state = {
+    on: false, hue: 0, saturation: 100, brightness: 100,
+    /** device scale 0-100, 0 warm */
+    whiteTemp: 50,
+  };
+
+  /** Which write mode the lights were last driven in. HomeKit can address both
+   *  colour and colour-temperature on one Lightbulb, but the device does one
+   *  or the other, so brightness has to follow whichever is current. */
+  private mode: 'color' | 'white' = 'color';
 
   private colorTimer: NodeJS.Timeout | null = null;
   private activeScene: string | null = null;
@@ -60,6 +95,11 @@ export class ControllerAccessory {
       .onGet(() => this.state.saturation)
       .onSet((v) => this.setSaturation(v));
 
+    this.light.getCharacteristic(Characteristic.ColorTemperature)
+      .setProps({ minValue: MIRED_COOLEST, maxValue: MIRED_WARMEST })
+      .onGet(() => deviceTempToMired(this.state.whiteTemp))
+      .onSet((v) => this.setColorTemperature(v));
+
     this.scenes = device.scenes ?? [];
 
     // Drop switches for scenes that are no longer configured. Homebridge keeps
@@ -82,6 +122,9 @@ export class ControllerAccessory {
     this.client = new Client({
       host: device.host,
       port: device.port,
+      pollIntervalMs: device.pollIntervalSeconds
+        ? Math.max(5, device.pollIntervalSeconds) * 1000
+        : undefined,
       log: {
         debug: (m) => this.platform.log.debug(m),
         info: (m) => this.platform.log.info(m),
@@ -201,13 +244,21 @@ export class ControllerAccessory {
     this.queueColor();
   }
 
+  private setColorTemperature(value: CharacteristicValue): void {
+    this.state.whiteTemp = miredToDeviceTemp(value as number);
+    this.mode = 'white';
+    this.queueColor();
+  }
+
   private setHue(value: CharacteristicValue): void {
     this.state.hue = value as number;
+    this.mode = 'color';
     this.queueColor();
   }
 
   private setSaturation(value: CharacteristicValue): void {
     this.state.saturation = value as number;
+    this.mode = 'color';
     this.queueColor();
   }
 
@@ -222,11 +273,16 @@ export class ControllerAccessory {
       for (const service of this.sceneSwitches.values()) {
         service.updateCharacteristic(this.platform.Characteristic.On, false);
       }
-      this.client.setSolid(
-        Math.min(358, Math.round(this.state.hue)),
-        Math.round(this.state.saturation),
-        Math.max(1, Math.round(this.state.brightness)),
-      );
+      const brightness = Math.max(1, Math.round(this.state.brightness));
+      if (this.mode === 'white') {
+        this.client.setWhite(this.state.whiteTemp, brightness);
+      } else {
+        this.client.setSolid(
+          Math.min(358, Math.round(this.state.hue)),
+          Math.round(this.state.saturation),
+          brightness,
+        );
+      }
     }, COLOR_COALESCE_MS);
   }
 }

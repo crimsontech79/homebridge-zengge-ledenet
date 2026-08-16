@@ -44,6 +44,14 @@
               "maximum": 255,
               "description": "Only needed for per-pixel effects. There is no way to read this from the device."
             },
+            "pollIntervalSeconds": {
+              "title": "State poll interval (seconds)",
+              "type": "integer",
+              "default": 30,
+              "minimum": 5,
+              "maximum": 600,
+              "description": "How often to ask the controller for its state. Reads are cheap \u2014 the plugin reuses one connection rather than reconnecting, which is what this hardware dislikes."
+            },
             "scenes": {
               "title": "Scenes",
               "type": "array",

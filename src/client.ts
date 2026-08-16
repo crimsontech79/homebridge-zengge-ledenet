@@ -307,6 +307,11 @@ export class Client extends EventEmitter {
     this.send(p.solidColor(hue, saturation, value));
   }
 
+  /** Drive the dedicated white channel. Both values 0-100. UNVERIFIED. */
+  setWhite(temperature: number, brightness: number): void {
+    this.send(p.white(temperature, brightness));
+  }
+
   setScene(
     pattern: number, colors: p.Color[], speed = 50, brightness = 100, style = 0,
     param7 = 0x64,

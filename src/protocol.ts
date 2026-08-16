@@ -147,6 +147,27 @@ export function solidColor(hue: number, saturation: number, value: number): Buff
   ]);
 }
 
+/**
+ * Inner message for the dedicated WHITE channel.
+ *
+ * `temperature` and `brightness` are 0-100. Byte 3 selects white mode (0xB1)
+ * rather than colour (0xA1), and the value rides in the two bytes a colour
+ * write leaves as white temp / white brightness.
+ *
+ * ⚠️ UNVERIFIED against hardware. The byte positions come from captured
+ * traffic, but the SCALE is an assumption: 0 is believed to be warmest and 100
+ * coolest, and nobody has measured what Kelvin those correspond to. Do not
+ * present a Kelvin figure to a user as if it were measured.
+ */
+export function white(temperature: number, brightness: number): Buffer {
+  return Buffer.from([
+    0xe0, 0x01, 0x00, WRITE_MODE_WHITE,
+    0x00, 0x00, 0x00,
+    temperature & 0xff, brightness & 0xff,
+    0x00, 0x00, 0x14, 0x00, 0x00,
+  ]);
+}
+
 export interface Color {
   /** 0-358 */
   hue?: number;

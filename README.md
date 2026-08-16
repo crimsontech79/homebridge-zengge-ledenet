@@ -42,8 +42,16 @@ question, and nobody can answer it without you.
 | Power on / off | Lightbulb |
 | Colour (hue / saturation) | Lightbulb |
 | Brightness | Lightbulb |
+| Colour temperature | Lightbulb — ⚠️ see below |
 | Saved scenes / animations | optional Switch per configured scene — see below |
 | Live state | polled on the held connection |
+
+⚠️ **Colour temperature is not yet confirmed against hardware.** The command's
+byte positions come from captured traffic, but the scale is an assumption: 0 is
+believed to be warmest and 100 coolest, and nobody has measured what Kelvin
+those correspond to. The slider is bounded to roughly 2700K–6500K, which is the
+usual span for this class of hardware — a stated assumption, not a measurement.
+If yours behaves differently, that is exactly the kind of report worth filing.
 
 Per-pixel control and music-reactive mode are implemented in the protocol layer
 but have no HomeKit representation — HomeKit has no vocabulary for either. They

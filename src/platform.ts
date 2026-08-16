@@ -32,6 +32,10 @@ export interface DeviceConfig {
   /** Number of lights on the strand. There is no way to read this from the
    *  device, so it must be configured for any per-pixel work. */
   pixels?: number;
+  /** How often to ask the device for its state, in seconds. Default 30.
+   *  Reads are cheap — it is reconnecting that this hardware dislikes, so a
+   *  shorter interval is safe as long as the connection is reused. */
+  pollIntervalSeconds?: number;
   scenes?: SceneConfig[];
 }
 

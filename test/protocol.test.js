@@ -148,6 +148,20 @@ describe('commands', () => {
     assert.strictEqual(msg[11], 0x14);
   });
 
+  it('builds a 14-byte white write in mode 0xb1', () => {
+    const msg = p.white(40, 80);
+    assert.strictEqual(msg.length, 14);
+    assert.deepStrictEqual(msg.subarray(0, 4), Buffer.from([0xe0, 0x01, 0x00, 0xb1]));
+    assert.strictEqual(msg[7], 40, 'temperature sits at byte 7');
+    assert.strictEqual(msg[8], 80, 'brightness sits at byte 8');
+    assert.strictEqual(msg[11], 0x14);
+  });
+
+  it('keeps white and colour writes distinguishable', () => {
+    // Same length, same trailing constant -- only byte 3 says which is which.
+    assert.notStrictEqual(p.white(50, 100)[3], p.solidColor(30, 36, 100)[3]);
+  });
+
   it('uses 5-byte scene entries and 7-byte per-pixel entries', () => {
     const n = 4;
     const colors = Array.from({ length: n }, () => ({ hue: 0 }));
