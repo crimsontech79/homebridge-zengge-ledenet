@@ -14,8 +14,15 @@
  *      while the lights stutter or freeze. Send success tells you NOTHING about
  *      whether the LEDs moved. Anything streaming frames must pace itself.
  *
- * The controller also PUSHES its state unprompted roughly every 30 s, and
- * within seconds of a scene change, so we mostly do not need to poll at all.
+ * ⚠️ The controller has been observed pushing state unprompted, but it does NOT
+ * do so reliably for a purely passive listener: a plugin that only listens sits
+ * at its default state forever and reports every accessory as off. Verified
+ * against real hardware 2026-08-16 -- zero frames in 18 minutes across several
+ * connections. So we POLL, on the one persistent connection.
+ *
+ * Polling is not in tension with constraint 1. What stalls this controller is
+ * RECONNECTING per query, not querying. One socket, polled, is the same shape
+ * the reference Python client uses.
  */
 import { EventEmitter } from 'events';
 import * as net from 'net';
@@ -35,10 +42,16 @@ export const DEFAULT_TIMEOUT_MS = 8000;
 const RECONNECT_MIN_MS = 2000;
 const RECONNECT_MAX_MS = 60000;
 
+/** How often to ask the device for its state, on the connection we already
+ *  hold. Reads are free; it is reconnecting that hurts. */
+const DEFAULT_POLL_MS = 30000;
+
 export interface ClientOptions {
   host: string;
   port?: number;
   timeoutMs?: number;
+  /** State poll interval in ms. Reads are cheap; the default is 30 s. */
+  pollIntervalMs?: number;
   log?: {
     debug: (msg: string) => void;
     info: (msg: string) => void;
@@ -63,8 +76,10 @@ export class Client extends EventEmitter {
   private counter = -1;
   private reconnectDelay = RECONNECT_MIN_MS;
   private reconnectTimer: NodeJS.Timeout | null = null;
+  private pollTimer: NodeJS.Timeout | null = null;
   private stopped = false;
   private readonly timeoutMs: number;
+  private readonly pollIntervalMs: number;
   private readonly log: NonNullable<ClientOptions['log']>;
 
   /** Last state the device reported, from a push or a reply. */
@@ -75,6 +90,7 @@ export class Client extends EventEmitter {
     this.host = opts.host;
     this.port = opts.port ?? DEFAULT_PORT;
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.pollIntervalMs = opts.pollIntervalMs ?? DEFAULT_POLL_MS;
     /* eslint-disable no-console */
     this.log = opts.log ?? {
       debug: () => undefined,
@@ -94,6 +110,7 @@ export class Client extends EventEmitter {
 
   stop(): void {
     this.stopped = true;
+    this.stopPolling();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -119,6 +136,10 @@ export class Client extends EventEmitter {
       this.reconnectDelay = RECONNECT_MIN_MS;
       this.buffer = Buffer.alloc(0);
       this.emit('connect');
+      // Ask immediately so HomeKit shows the truth rather than our defaults,
+      // then keep asking on this same socket.
+      this.requestState();
+      this.startPolling();
     });
 
     sock.on('data', (chunk) => this.onData(chunk));
@@ -136,9 +157,22 @@ export class Client extends EventEmitter {
 
     sock.on('close', () => {
       this.socket = null;
+      this.stopPolling();
       this.emit('close');
       this.scheduleReconnect();
     });
+  }
+
+  private startPolling(): void {
+    this.stopPolling();
+    this.pollTimer = setInterval(() => this.requestState(), this.pollIntervalMs);
+  }
+
+  private stopPolling(): void {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
   }
 
   private destroySocket(): void {
@@ -178,6 +212,11 @@ export class Client extends EventEmitter {
       try {
         const state = p.parseState(frame);
         this.lastState = state;
+        this.log.debug(
+          `${this.host}: state power=${state.isOn ? 'on' : 'off'} `
+          + `pattern=0x${state.pattern.toString(16).padStart(2, '0')} `
+          + `speed=${state.speed} hsv=${state.hue}/${state.saturation}/${state.value}`,
+        );
         this.emit('state', state);
       } catch (err) {
         this.log.debug(`${this.host}: undecodable frame: ${(err as Error).message}`);
@@ -232,9 +271,15 @@ export class Client extends EventEmitter {
     this.sendRaw(p.wrap(inner, this.nextCounter(), version));
   }
 
-  /** Ask for a state frame. Usually unnecessary -- the device pushes. */
+  /**
+   * Ask for a state frame.
+   *
+   * Uses the BARE query. PROTOCOL.md says both framings work, but bare is the
+   * form the reference client has always used against this hardware, so it is
+   * the one with mileage on it.
+   */
   requestState(): void {
-    this.send(p.STATE_QUERY_INNER);
+    this.sendRaw(p.STATE_QUERY_BARE);
   }
 
   // -- operations ----------------------------------------------------------
@@ -250,8 +295,9 @@ export class Client extends EventEmitter {
 
   setScene(
     pattern: number, colors: p.Color[], speed = 50, brightness = 100, style = 0,
+    param7 = 0x64,
   ): void {
-    this.send(p.scene(pattern, colors, speed, brightness, style));
+    this.send(p.scene(pattern, colors, speed, brightness, style, param7));
   }
 
   setPixels(colors: p.Color[], brightness = 100, seq = 0): void {

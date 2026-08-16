@@ -14,6 +14,9 @@ export interface SceneConfig {
   speed?: number;
   brightness?: number;
   style?: number;
+  /** Byte 7. Unknown purpose; 0x64 on most scenes, but some use another value
+   *  and hardcoding it reproduces those scenes incorrectly. */
+  param7?: number;
   colors: Color[];
 }
 

@@ -23,7 +23,7 @@ breaks the connection.
 | Colour (hue / saturation) | Lightbulb |
 | Brightness | Lightbulb |
 | Saved scenes / animations | one Switch per configured scene |
-| Live state | pushed by the device, no polling |
+| Live state | polled on the held connection |
 
 Per-pixel control and music-reactive mode are implemented in the protocol layer
 but have no HomeKit representation — HomeKit has no vocabulary for either. They
@@ -66,25 +66,33 @@ a changed address silently breaks the accessory.
 ### Finding your scene ids
 
 There is no command that lists scenes. Run a scene in the vendor app and read
-**byte 8** of the device state frame — that is the pattern id. The controller
-pushes its state to any connected client within seconds of a scene change, so
-this needs **no writes at all**: connect to TCP 5577, listen, and watch byte 8
-move as you tap through your scenes.
+**byte 8** of the device state frame — that is the pattern id, and **byte 9** is
+the speed. You need both: two scenes can share a pattern id and differ only in
+speed.
 
-Note that a pattern id identifies the *motion*, not the scene: two scenes can
-share an id and differ only in palette and speed. The palette lives in the
-command, so it is configured here rather than recalled from the device.
+Connect to TCP 5577, send the bare state query `81 8a 8b 96` every few seconds
+on that one connection, and watch those bytes move as you tap through your
+scenes. Reads are free, so this needs no writes at all.
+
+A pattern id identifies the *motion*, not the scene. The palette is not readable
+back from the device at all — it lives in the command — which is why scenes are
+configured here rather than recalled.
 
 ## Design constraints — do not "fix" these
 
 These are not stylistic choices. Each one cost real debugging time, and a
 Homebridge plugin is unusually likely to trip over the first two.
 
-- **One persistent connection.** Homebridge's instinct is to poll a
-  characteristic and open a socket to do it. Ten quick connect/query/close
-  cycles leave this controller answering nothing for **over a minute**, which
-  looks exactly like broken hardware. This plugin holds one socket open and
-  listens; the device pushes its state about every 30 s unprompted.
+- **One persistent connection — but do poll on it.** Homebridge's instinct is
+  to poll a characteristic and open a socket to do it. Ten quick
+  connect/query/close cycles leave this controller answering nothing for **over
+  a minute**, which looks exactly like broken hardware. What hurts is
+  *reconnecting* per query, not querying: this plugin holds one socket open and
+  polls state on it every 30 s.
+- **Do not rely on the device pushing state.** It has been seen doing so, but
+  not dependably: against real hardware a purely passive listener received
+  nothing across 18 minutes and several connections, leaving every accessory
+  stuck reporting "off". Ask, don't wait.
 - **There is no backpressure.** `socket.write()` succeeds and reports total
   success while the lights stutter or freeze. **Send success tells you nothing
   about whether the LEDs moved.** Anything streaming frames must pace itself.

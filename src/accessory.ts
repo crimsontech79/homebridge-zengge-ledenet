@@ -23,6 +23,7 @@ export class ControllerAccessory {
 
   private colorTimer: NodeJS.Timeout | null = null;
   private activeScene: string | null = null;
+  private readonly scenes: SceneConfig[];
 
   constructor(
     private readonly platform: ZenggePlatform,
@@ -55,7 +56,8 @@ export class ControllerAccessory {
       .onGet(() => this.state.saturation)
       .onSet((v) => this.setSaturation(v));
 
-    for (const scene of device.scenes ?? []) {
+    this.scenes = device.scenes ?? [];
+    for (const scene of this.scenes) {
       this.addSceneSwitch(scene);
     }
 
@@ -70,9 +72,11 @@ export class ControllerAccessory {
       },
     });
 
-    // The device pushes its state roughly every 30 s and within seconds of a
-    // change, so we listen instead of polling. Polling would mean a socket per
-    // request, which is the failure mode that stalls this hardware.
+    // The client polls for state on ONE persistent connection. It does not
+    // reconnect per query -- that is the failure mode that stalls this
+    // hardware. Relying on the device's unprompted pushes was tried and does
+    // not work: a passive listener never hears anything and reports every
+    // accessory as off.
     this.client.on('state', (s) => this.onDeviceState(s));
     this.client.start();
   }
@@ -111,6 +115,7 @@ export class ControllerAccessory {
           scene.speed ?? 50,
           scene.brightness ?? 100,
           scene.style ?? 0,
+          scene.param7 ?? 0x64,
         );
         this.activeScene = scene.name;
         // Scenes are mutually exclusive: only one palette is running.
@@ -134,17 +139,36 @@ export class ControllerAccessory {
       this.light.updateCharacteristic(Characteristic.On, s.isOn);
     }
 
-    // ⚠️ The state frame's colour bytes do NOT track a running scene's palette
-    // -- they read the same under every scene. Only trust them when the device
-    // is showing a solid colour, otherwise HomeKit would show a wrong swatch.
-    if (this.activeScene === null) {
-      this.state.hue = Math.min(360, s.hue);
-      this.state.saturation = s.saturation;
-      this.state.brightness = s.value;
-      this.light.updateCharacteristic(Characteristic.Hue, this.state.hue);
-      this.light.updateCharacteristic(Characteristic.Saturation, s.saturation);
-      this.light.updateCharacteristic(Characteristic.Brightness, s.value);
+    // Which scene is running CAN be recovered, even though the palette cannot:
+    // the state frame carries the pattern id and speed, and those two together
+    // identify a configured scene. Two scenes may share a pattern id and differ
+    // only in speed, so both must match -- id alone is not enough.
+    const match = this.scenes.find(
+      (sc) => sc.pattern === s.pattern && (sc.speed ?? 50) === s.speed,
+    );
+    const matchedName = match ? match.name : null;
+    if (matchedName !== this.activeScene) {
+      this.activeScene = matchedName;
+      for (const [name, service] of this.sceneSwitches) {
+        service.updateCharacteristic(Characteristic.On, name === matchedName);
+      }
+      if (matchedName) {
+        this.platform.log.debug(`${this.accessory.displayName}: scene "${matchedName}" is running`);
+      }
     }
+
+    // ⚠️ ONLY power is taken from the device.
+    //
+    // The state frame's colour bytes do not describe what the strand is
+    // actually showing. Under a running scene they are meaningless: observed
+    // reading 354/100/78 under every scene on one unit, and 0/0/0 on real
+    // hardware while a scene ran (2026-08-16). Copying them into HomeKit
+    // showed the lamp at 0% brightness, and worse, that 0 then became the
+    // value written back on the next colour change -- a wrong reading turning
+    // into a wrong command.
+    //
+    // So colour and brightness are HomeKit's own model, not the device's.
+    // There is no way to read back what a scene is really displaying.
   }
 
   // -- from HomeKit --------------------------------------------------------

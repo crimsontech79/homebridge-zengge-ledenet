@@ -155,6 +155,13 @@ describe('commands', () => {
     assert.strictEqual(p.perPixel(colors).length, 9 + n * 7);
   });
 
+  it('defaults scene byte 7 to 0x64 but allows overriding it', () => {
+    // Settled against six captured scene frames: five carried 0x64, one 0x4A.
+    // Hardcoding it reproduced that scene wrongly while still being accepted.
+    assert.strictEqual(p.scene(0x03, [{ hue: 0 }])[7], 0x64);
+    assert.strictEqual(p.scene(0x42, [{ hue: 0 }], 50, 100, 0, 0x4a)[7], 0x4a);
+  });
+
   it('maps per-pixel entry order to light index', () => {
     const msg = p.perPixel([{ hue: 0 }, { hue: 120 }, { hue: 240 }]);
     const hues = [0, 1, 2].map((i) => msg[9 + i * 7 + 1] * 2);

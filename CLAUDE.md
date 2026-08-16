@@ -31,13 +31,20 @@ It is a deliberate line-for-line port of `zengge/protocol.py`. Keep it that way:
 
 ## Design constraints (learned the hard way — do not "fix" these)
 
-- **One persistent connection.** Homebridge polls characteristics, and the
-  natural implementation opens a socket per poll. Ten quick connect/query/close
-  cycles stall this controller for over a minute — it looks like dead hardware.
-  `Client` holds one socket and listens; the device pushes state every ~30 s.
-  **Never add a polling timer that reconnects.**
+- **One persistent connection, polled.** Homebridge polls characteristics, and
+  the natural implementation opens a socket per poll. Ten quick
+  connect/query/close cycles stall this controller for over a minute — it looks
+  like dead hardware. `Client` holds one socket and polls state on it.
+  **Never add a polling timer that reconnects** — the timer is fine, the
+  reconnect is what kills it.
+- **Do not rely on unprompted pushes.** Tried and disproven against real
+  hardware 2026-08-16: a passive listener got nothing in 18 minutes across
+  several connections, so every accessory reported "off". The reference Python
+  client polls, and so must this.
+- **Use the BARE state query** `81 8a 8b 96`. Both framings are documented as
+  working, but bare is the one with mileage on real hardware.
 - **The socket's idle timeout must not tear down the connection.** An idle
-  socket is expected — the device only speaks every ~30 s.
+  socket is expected — this device speaks only when asked.
 - **There is no backpressure.** `write()` succeeds while the lights stutter or
   freeze. Send success is not evidence the LEDs moved.
 - **Pace per-pixel writes to ≤5 Hz**; 8 Hz visibly stutters even on smooth
@@ -54,9 +61,14 @@ It is a deliberate line-for-line port of `zengge/protocol.py`. Keep it that way:
 - **HomeKit sends Hue and Saturation as separate writes.** They must be
   coalesced, or every colour change sends two commands, the first with a stale
   half of the colour. `COLOR_COALESCE_MS` in `accessory.ts` does this.
-- **The state frame does not report a running scene's palette.** Its colour
-  bytes read identically under every scene, so they are only trusted when no
-  scene is active — otherwise HomeKit shows a wrong swatch.
+- **Never take colour or brightness from the state frame.** Its colour bytes do
+  not describe what the strand is showing: observed as a constant under every
+  scene on one unit, and as `0/0/0` on real hardware mid-scene. Copying them in
+  showed 0% brightness AND made 0 the value written back on the next colour
+  change. Colour is HomeKit's model; only power comes from the device.
+- **Which scene is running IS recoverable** — pattern id (byte 8) plus speed
+  (byte 9) together identify a configured scene. Match on both: ids collide,
+  and speed is what separates them.
 - **There is no "stop scene" command.** Turning a scene switch off clears the
   flag and leaves the lights alone rather than guessing.
 - **HomeKit cannot express per-pixel or music mode.** Do not invent a
@@ -90,7 +102,7 @@ Tests must run with no device and no network.
 ## Layout
 
     src/protocol.ts   byte building and parsing, pure functions (port)
-    src/client.ts     persistent connection, pacing, state pushes
+    src/client.ts     persistent connection, polling, pacing
     src/platform.ts   Homebridge dynamic platform
     src/accessory.ts  Lightbulb + scene switches
     test/             structural + golden tests, shared fixture

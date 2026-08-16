@@ -3,7 +3,7 @@
   "pluginType": "platform",
   "singular": true,
   "headerDisplay": "Local control for ZENGGE / LEDENET controllers running newer OEM firmware (model `0x6E`, `ZG-BL-HONGRUI`). No cloud, no account. The controller must be reachable on your LAN on TCP 5577.",
-  "footerDisplay": "Pixel count and scenes are yours to define — this plugin has no built-in idea of how your run is installed.",
+  "footerDisplay": "Pixel count and scenes are yours to define \u2014 this plugin has no built-in idea of how your run is installed.",
   "schema": {
     "type": "object",
     "properties": {
@@ -30,7 +30,7 @@
               "type": "string",
               "required": true,
               "format": "hostname",
-              "description": "Give the controller a DHCP reservation — these devices do not advertise mDNS, so a changed address silently breaks the accessory."
+              "description": "Give the controller a DHCP reservation \u2014 these devices do not advertise mDNS, so a changed address silently breaks the accessory."
             },
             "port": {
               "title": "Port",
@@ -51,7 +51,11 @@
               "items": {
                 "type": "object",
                 "properties": {
-                  "name": { "title": "Name", "type": "string", "required": true },
+                  "name": {
+                    "title": "Name",
+                    "type": "string",
+                    "required": true
+                  },
                   "pattern": {
                     "title": "Animation id",
                     "type": "integer",
@@ -60,8 +64,20 @@
                     "maximum": 255,
                     "description": "The pattern id byte. Read it from the device state while the scene is running in the vendor app."
                   },
-                  "speed": { "title": "Speed", "type": "integer", "default": 50, "minimum": 0, "maximum": 100 },
-                  "brightness": { "title": "Brightness", "type": "integer", "default": 100, "minimum": 0, "maximum": 100 },
+                  "speed": {
+                    "title": "Speed",
+                    "type": "integer",
+                    "default": 50,
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "brightness": {
+                    "title": "Brightness",
+                    "type": "integer",
+                    "default": 100,
+                    "minimum": 0,
+                    "maximum": 100
+                  },
                   "style": {
                     "title": "Style variant",
                     "type": "integer",
@@ -75,12 +91,40 @@
                     "items": {
                       "type": "object",
                       "properties": {
-                        "hue": { "title": "Hue", "type": "integer", "minimum": 0, "maximum": 358 },
-                        "saturation": { "title": "Saturation", "type": "integer", "minimum": 0, "maximum": 100 },
-                        "value": { "title": "Value", "type": "integer", "minimum": 0, "maximum": 100 },
-                        "white": { "title": "White", "type": "integer", "minimum": 0, "maximum": 100 }
+                        "hue": {
+                          "title": "Hue",
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 358
+                        },
+                        "saturation": {
+                          "title": "Saturation",
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100
+                        },
+                        "value": {
+                          "title": "Value",
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100
+                        },
+                        "white": {
+                          "title": "White",
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100
+                        }
                       }
                     }
+                  },
+                  "param7": {
+                    "title": "Byte 7",
+                    "type": "integer",
+                    "default": 100,
+                    "minimum": 0,
+                    "maximum": 255,
+                    "description": "Unknown purpose. 100 (0x64) on most scenes; some use another value. If a scene renders wrong, read this byte from the captured command."
                   }
                 }
               }

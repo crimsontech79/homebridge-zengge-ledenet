@@ -174,6 +174,11 @@ function fill(c: Color): Required<Color> {
  * around the whole strand. Repeat an entry to lengthen its run -- four reds
  * followed by four blues gives blocks of four.
  *
+ * `param7` is byte 7, whose meaning is unknown. It reads 0x64 on most scenes
+ * but a captured 6-colour scene used 0x4A, so it cannot be hardcoded: doing so
+ * reproduces that scene incorrectly while still producing a message the device
+ * accepts. Pass the captured value through.
+ *
  * Use `perPixel` when you need to address lights individually.
  */
 export function scene(
@@ -182,13 +187,14 @@ export function scene(
   speed = 50,
   brightness = 100,
   style = 0x00,
+  param7 = 0x64,
 ): Buffer {
   if (colors.length === 0) {
     throw new Error('a scene needs at least one colour');
   }
   const head = Buffer.from([
     0xe1, 0x21, 0x00, brightness & 0xff, pattern & 0xff,
-    style & 0xff, 0x01, 0x64, speed & 0xff,
+    style & 0xff, 0x01, param7 & 0xff, speed & 0xff,
     0, 0, 0, 0, 0, 0, colors.length,
   ]);
   const body = Buffer.concat(
