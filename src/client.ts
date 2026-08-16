@@ -46,12 +46,28 @@ const RECONNECT_MAX_MS = 60000;
  *  hold. Reads are free; it is reconnecting that hurts. */
 const DEFAULT_POLL_MS = 30000;
 
+/**
+ * Minimum spacing between anything we put on the wire.
+ *
+ * Measured 2026-08-16: dragging a HomeKit colour-temperature slider produced 26
+ * writes in about 8 s, typically 250-350 ms apart, and the lights behaved
+ * unreliably. The reference Python client waits a full second after every
+ * write, so that was roughly 4x a rate known to work. Worse, nothing
+ * coordinated writes with the state poll -- two frames went out 3 ms apart.
+ *
+ * There is no backpressure on this hardware: every one of those writes
+ * "succeeded". Pacing is the only control available.
+ */
+const DEFAULT_WRITE_GAP_MS = 400;
+
 export interface ClientOptions {
   host: string;
   port?: number;
   timeoutMs?: number;
   /** State poll interval in ms. Reads are cheap; the default is 30 s. */
   pollIntervalMs?: number;
+  /** Minimum gap between outbound frames, in ms. Default 400. */
+  writeGapMs?: number;
   log?: {
     debug: (msg: string) => void;
     info: (msg: string) => void;
@@ -80,6 +96,20 @@ export class Client extends EventEmitter {
   private stopped = false;
   private readonly timeoutMs: number;
   private readonly pollIntervalMs: number;
+  private readonly writeGapMs: number;
+
+  /**
+   * Outbound queue, newest-wins per key.
+   *
+   * A slider drag emits a stream of values of which only the LAST matters, so a
+   * queued frame with the same key is replaced rather than appended. That both
+   * cuts the rate and guarantees the final value lands -- a plain rate limiter
+   * that drops the tail would leave the lights on whatever the user dragged
+   * past, which is worse than being slow.
+   */
+  private outbox = new Map<string, Buffer>();
+  private drainTimer: NodeJS.Timeout | null = null;
+  private lastWriteAt = 0;
   private readonly log: NonNullable<ClientOptions['log']>;
 
   /** Last state the device reported, from a push or a reply. */
@@ -91,6 +121,7 @@ export class Client extends EventEmitter {
     this.port = opts.port ?? DEFAULT_PORT;
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.pollIntervalMs = opts.pollIntervalMs ?? DEFAULT_POLL_MS;
+    this.writeGapMs = opts.writeGapMs ?? DEFAULT_WRITE_GAP_MS;
     /* eslint-disable no-console */
     this.log = opts.log ?? {
       debug: () => undefined,
@@ -111,6 +142,11 @@ export class Client extends EventEmitter {
   stop(): void {
     this.stopped = true;
     this.stopPolling();
+    if (this.drainTimer) {
+      clearTimeout(this.drainTimer);
+      this.drainTimer = null;
+    }
+    this.outbox.clear();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -267,22 +303,60 @@ export class Client extends EventEmitter {
   }
 
   /**
-   * Send bytes exactly as given.
+   * Queue a frame, newest-wins for the given key.
    *
-   * Returning cleanly means only that the socket accepted the bytes. It is NOT
-   * evidence the device acted on them.
+   * Returning cleanly means only that the frame was queued -- and even once
+   * written, that only means the socket accepted it. It is NOT evidence the
+   * device acted on it.
    */
-  sendRaw(payload: Buffer): void {
+  sendRaw(payload: Buffer, key = 'raw'): void {
+    // Map.set on an existing key keeps its position but takes the new value,
+    // so a superseded slider value is replaced in place rather than piling up.
+    this.outbox.set(key, payload);
+    this.drain();
+  }
+
+  /** Wrap an inner message and queue it. */
+  send(inner: Buffer, version = 0x02, key = 'raw'): void {
+    this.sendRaw(p.wrap(inner, this.nextCounter(), version), key);
+  }
+
+  /** Write one queued frame, then reschedule while any remain. */
+  private drain(): void {
+    if (this.drainTimer || this.outbox.size === 0) {
+      return;
+    }
+    const wait = Math.max(0, this.lastWriteAt + this.writeGapMs - Date.now());
+    this.drainTimer = setTimeout(() => {
+      this.drainTimer = null;
+      const next = this.outbox.entries().next();
+      if (!next.done) {
+        const [key, payload] = next.value;
+        this.outbox.delete(key);
+        this.writeNow(payload);
+      }
+      if (this.outbox.size > 0) {
+        this.drain();
+      }
+    }, wait);
+  }
+
+  private writeNow(payload: Buffer): void {
     if (!this.socket || this.socket.destroyed) {
       this.log.debug(`${this.host}: dropped a frame, not connected`);
       return;
     }
+    const now = Date.now();
+    const gap = this.lastWriteAt ? now - this.lastWriteAt : -1;
+    const inner = p.unwrap(payload);
+    const op = inner.length >= 4 && inner[0] === 0xe0
+      ? `e0 01 00 ${inner[3].toString(16)}`
+      : inner.subarray(0, 2).toString('hex');
+    this.log.debug(
+      `${this.host}: TX ${op} (${payload.length}B)${gap >= 0 ? ` +${gap}ms` : ''}`,
+    );
+    this.lastWriteAt = now;
     this.socket.write(payload);
-  }
-
-  /** Wrap an inner message and send it. */
-  send(inner: Buffer, version = 0x02): void {
-    this.sendRaw(p.wrap(inner, this.nextCounter(), version));
   }
 
   /**
@@ -293,34 +367,38 @@ export class Client extends EventEmitter {
    * the one with mileage on it.
    */
   requestState(): void {
-    this.sendRaw(p.STATE_QUERY_BARE);
+    this.sendRaw(p.STATE_QUERY_BARE, 'state');
   }
 
   // -- operations ----------------------------------------------------------
 
   setPower(on: boolean): void {
-    this.sendRaw(p.power(on));
+    this.sendRaw(p.power(on), 'power');
   }
 
   /** A single colour across the whole strand. Saturation 0 is white. */
   setSolid(hue: number, saturation: number, value: number): void {
-    this.send(p.solidColor(hue, saturation, value));
+    // Shares the 'look' key with setWhite: they are alternative answers to
+    // the same question, so a queued one must never outlive a newer one.
+    this.send(p.solidColor(hue, saturation, value), 0x02, 'look');
   }
 
   /** Drive the dedicated white channel. Both values 0-100. UNVERIFIED. */
   setWhite(temperature: number, brightness: number): void {
-    this.send(p.white(temperature, brightness));
+    this.send(p.white(temperature, brightness), 0x02, 'look');
   }
 
   setScene(
     pattern: number, colors: p.Color[], speed = 50, brightness = 100, style = 0,
     param7 = 0x64,
   ): void {
-    this.send(p.scene(pattern, colors, speed, brightness, style, param7));
+    this.send(p.scene(pattern, colors, speed, brightness, style, param7), 0x02, 'look');
   }
 
   setPixels(colors: p.Color[], brightness = 100, seq = 0): void {
-    this.send(p.perPixel(colors, brightness, seq));
+    // Coalescing is the right backpressure policy for animation: a frame
+    // that could not go out yet is replaced by the newer one.
+    this.send(p.perPixel(colors, brightness, seq), 0x02, 'pixels');
   }
 
   /**
