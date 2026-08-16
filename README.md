@@ -9,8 +9,9 @@ your controller, this is why: the 2025 firmware replaced the classic Magic Home
 command set. Every documented LEDENET opcode is either ignored or actively
 breaks the connection.
 
-> **Status: early.** The protocol is fully reverse-engineered and verified
-> against real hardware, and is documented in
+> **Status: early but working.** Power, colour and brightness are confirmed
+> against real hardware from the Home app, with a human watching the lights.
+> The protocol is fully reverse-engineered and documented in
 > [zengge-ledenet-py](https://github.com/crimsontech79/zengge-ledenet-py)
 > (`docs/PROTOCOL.md`) — that document is the authoritative reference and the
 > point of both projects. This plugin is the HomeKit front end for it.
@@ -22,7 +23,7 @@ breaks the connection.
 | Power on / off | Lightbulb |
 | Colour (hue / saturation) | Lightbulb |
 | Brightness | Lightbulb |
-| Saved scenes / animations | one Switch per configured scene |
+| Saved scenes / animations | optional Switch per configured scene — see below |
 | Live state | polled on the held connection |
 
 Per-pixel control and music-reactive mode are implemented in the protocol layer
@@ -36,8 +37,16 @@ effect.
 npm install -g homebridge-zengge-ledenet
 ```
 
-Then add a platform block, or use the Homebridge UI (a config schema ships with
-the plugin):
+**That is usually all the setup there is.** Controllers answer a UDP broadcast,
+so the plugin finds them by itself — no IP address, no DHCP reservation, no
+network knowledge needed. An empty platform block works:
+
+```json
+{ "platform": "ZenggeLedenet" }
+```
+
+If your network blocks broadcast, or you want to name things yourself, configure
+devices explicitly via the Homebridge UI or a platform block:
 
 ```json
 {
@@ -60,8 +69,20 @@ the plugin):
 }
 ```
 
-**Give the controller a DHCP reservation.** These devices advertise no mDNS, so
-a changed address silently breaks the accessory.
+Accessories are identified by MAC address, not IP, so a controller whose DHCP
+lease moves is still recognised as the same accessory rather than reappearing as
+a duplicate.
+
+## Scenes (advanced, optional)
+
+**Most people should ignore this section.** The plugin works fully without it.
+
+This firmware has no "recall saved scene" command and no way to list scenes, and
+a scene's palette is not readable back from the device — the palette travels
+inside the command. So a scene switch can only be built by capturing the exact
+bytes your vendor app sends, which means running a packet capture against your
+own controller. That is a reverse-engineering exercise, not configuration, and
+it is why scenes are opt-in rather than the headline feature.
 
 ### Finding your scene ids
 

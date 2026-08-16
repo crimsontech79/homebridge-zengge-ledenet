@@ -68,7 +68,7 @@ export declare interface Client {
 }
 
 export class Client extends EventEmitter {
-  readonly host: string;
+  host: string;
   readonly port: number;
 
   private socket: net.Socket | null = null;
@@ -120,6 +120,20 @@ export class Client extends EventEmitter {
 
   get connected(): boolean {
     return this.socket !== null && !this.socket.destroyed;
+  }
+
+  /**
+   * Point at a new address, e.g. after re-discovering a device whose DHCP
+   * lease moved. Drops any current socket so the next attempt uses the new
+   * address.
+   */
+  setHost(host: string): void {
+    if (host === this.host) {
+      return;
+    }
+    this.log.info(`address moved: ${this.host} -> ${host}`);
+    this.host = host;
+    this.destroySocket();
   }
 
   private connect(): void {

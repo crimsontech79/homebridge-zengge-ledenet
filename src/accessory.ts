@@ -2,6 +2,10 @@ import type { CharacteristicValue, PlatformAccessory, Service } from 'homebridge
 
 import { Client } from './client';
 import type { DeviceConfig, SceneConfig, ZenggePlatform } from './platform';
+
+/** A device entry whose address is known -- the platform resolves this by
+ *  discovery before constructing an accessory, so it is not optional here. */
+export type ResolvedDevice = DeviceConfig & { host: string };
 import type { State } from './protocol';
 
 /**
@@ -28,14 +32,14 @@ export class ControllerAccessory {
   constructor(
     private readonly platform: ZenggePlatform,
     private readonly accessory: PlatformAccessory,
-    device: DeviceConfig,
+    device: ResolvedDevice,
   ) {
     const { Service, Characteristic } = this.platform;
 
     this.accessory.getService(Service.AccessoryInformation)
       ?.setCharacteristic(Characteristic.Manufacturer, 'ZENGGE / LEDENET')
       .setCharacteristic(Characteristic.Model, 'model 0x6E (ZG-BL-HONGRUI)')
-      .setCharacteristic(Characteristic.SerialNumber, device.host);
+      .setCharacteristic(Characteristic.SerialNumber, device.mac ?? device.host);
 
     this.light = this.accessory.getService(Service.Lightbulb)
       ?? this.accessory.addService(Service.Lightbulb, device.name);
@@ -57,6 +61,20 @@ export class ControllerAccessory {
       .onSet((v) => this.setSaturation(v));
 
     this.scenes = device.scenes ?? [];
+
+    // Drop switches for scenes that are no longer configured. Homebridge keeps
+    // cached services forever otherwise, so removing a scene from config would
+    // leave a dead switch in the Home app that controls nothing.
+    const wanted = new Set(this.scenes.map((sc) => `scene-${sc.name}`));
+    for (const service of [...this.accessory.services]) {
+      if (service.UUID === Service.Switch.UUID
+          && service.subtype
+          && !wanted.has(service.subtype)) {
+        this.platform.log.info(`Removing scene switch "${service.displayName}"`);
+        this.accessory.removeService(service);
+      }
+    }
+
     for (const scene of this.scenes) {
       this.addSceneSwitch(scene);
     }
