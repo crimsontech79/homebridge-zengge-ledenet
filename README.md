@@ -209,8 +209,8 @@ that is worth knowing about.
 
 ## Credits
 
-[`flux_led`](https://github.com/Danielhiversen/flux_led) and
-[`homebridge-magichome`](https://github.com/hokify/homebridge-magichome) are the
+[`flux_led`](https://github.com/lightinglibs/flux_led) and
+[`homebridge-magichome`](https://github.com/steve228uk/homebridge-magichome) are the
 established projects for Magic Home / LEDENET hardware and are excellent for the
 devices they support. This is an independent implementation for a firmware they
 do not cover. No code was copied from either.
