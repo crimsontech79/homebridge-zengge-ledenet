@@ -23,4 +23,6 @@ jobs:
       - name: Run tests
         # Includes pacing tests that bind a loopback TCP server, so they need
         # no hardware -- but they are timing-sensitive by nature.
-        run: node --test "test/*.test.js"
+        # Unquoted so the shell expands it: node --test only gained glob
+        # support in Node 22, and Node 20 treats the pattern literally.
+        run: node --test test/*.test.js

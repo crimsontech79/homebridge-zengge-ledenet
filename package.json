@@ -32,7 +32,7 @@
     "build": "tsc",
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run clean && npm run build",
-    "test": "npm run build && node --test \"test/*.test.js\"",
+    "test": "npm run build && node --test test/*.test.js",
     "watch": "tsc --watch"
   },
   "dependencies": {},
