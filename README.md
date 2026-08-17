@@ -158,11 +158,16 @@ Homebridge plugin is unusually likely to trip over the first two.
 npm test
 ```
 
-`src/protocol.ts` is a deliberate line-for-line port of `zengge/protocol.py`,
-and `test/captures.json` is the **same fixture file** used by the Python
-project. Two independent implementations checked against one set of captured
-frames is a far stronger guarantee than either alone — if they diverge, one of
-them is wrong about the hardware.
+`src/protocol.ts` is a deliberate line-for-line port of `zengge/protocol.py`.
+Both implementations are run over the same inputs and compared byte for byte,
+so a change to one that the other does not get is caught.
+
+`test/captures.json` is a shared harness for checking both against frames
+captured from the vendor app. ⚠️ **It currently contains no captures** — every
+entry is `TODO`, so those tests skip. The mechanism works and is tested; it is
+waiting on captures that can be published, which means throwaway scenes and
+timers created for the purpose rather than anyone's real configuration. Filling
+it in is the single most useful contribution anyone could make.
 
 ⛔ **A golden capture is evidence, never an expected value.** If a golden test
 fails, the builder is wrong. Never edit a capture to make a test pass.
