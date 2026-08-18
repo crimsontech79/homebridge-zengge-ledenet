@@ -212,6 +212,24 @@ that is worth knowing about.
 - **Turning a scene switch off does nothing to the lights.** There is no "stop
   scene" command, so the plugin leaves them alone rather than guessing.
 
+## A note on security
+
+These controllers have **no authentication**. TCP 5577 accepts commands from
+anything that can reach it — no pairing, no key, no challenge. That is why this
+plugin needs no credentials, no account and no cloud, and it is the same
+property that makes local control possible at all.
+
+Worth knowing rather than discovering: **anything on your local network can
+control these lights.** For most people that is a fine trade for outdoor
+lighting, but it is a fact about the hardware, not something a plugin can fix.
+
+One deliberate choice follows from it. Newer firmware includes a 32-character
+hex value in its discovery reply, stable across queries, whose purpose is
+unknown and which no command here uses. This plugin never logs or stores it, and
+a test enforces that — if it turns out to be a device key, leaking yours would
+matter; if it is meaningless, redacting it costs nothing. That is why the
+logs are safe to paste into a bug report.
+
 ## Credits
 
 [`flux_led`](https://github.com/lightinglibs/flux_led) and
