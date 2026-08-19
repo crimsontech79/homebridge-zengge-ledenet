@@ -2,6 +2,7 @@
   "name": "homebridge-zengge-ledenet",
   "version": "0.1.0",
   "description": "HomeKit support via Homebridge for ZENGGE / LEDENET LED controllers running newer OEM firmware (model 0x6E, ZG-BL-HONGRUI) that existing Magic Home plugins cannot talk to.",
+  "displayName": "ZENGGE / LEDENET Lights",
   "license": "GPL-3.0-or-later",
   "repository": {
     "type": "git",
@@ -26,7 +27,12 @@
     "rgb",
     "addressable",
     "permanent-outdoor-lighting",
-    "eave-lights"
+    "eave-lights",
+    "zg-bl-hongrui",
+    "flux-led",
+    "permanent-lighting",
+    "pixel-led",
+    "homekit"
   ],
   "scripts": {
     "build": "tsc",
